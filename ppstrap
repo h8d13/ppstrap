@@ -1,13 +1,26 @@
-import sys, os, subprocess, json
+import sys, os
 PYPY_PATH, VERSION = os.path.realpath(sys.executable), sys.version
 
-import argparse
+# fast path if first arg is not an option - or --
+# we just exec the script as is using open and read
+if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+    try:
+        exec(open(sys.argv[1]).read())
+    except SystemExit as e:
+        raise SystemExit(e.code)
+    # traceback prints are handled natively by pypy
+    else:
+        raise SystemExit(0)
+
+# only now import heavy stuff
+import subprocess, json, argparse
 parser = argparse.ArgumentParser(description="PY2STRAP")
-parser.add_argument("command", nargs="?", default="help", help="Command to run")
-parser.add_argument("-i", "--install", nargs="+", metavar="PKG", help="Install pypy pip packages")
-parser.add_argument("-u", "--uninstall", nargs="+", metavar="PKG", help="Uninstall pypy pip packages")
-parser.add_argument("-v", "--version", action="store_true", help="Show PyPy version")
+parser.add_argument("script", nargs="?", help="path to script to run")
+parser.add_argument("-v", "--version", action="store_true", help="show PyPy version")
 ########################### ^^ argparse strips the '--' and so we can define args.version
+# no long form bellow 
+parser.add_argument("-i", nargs="+", metavar="PKG", help="install pypy pip packages")
+parser.add_argument("-u", nargs="+", metavar="PKG", help="uninstall pypy pip packages")
 
 class GenericError(Exception):
     pass
@@ -70,18 +83,25 @@ pypy_pm = P2PM(PYPY_PATH)
 
 parser.error = lambda msg: (_ for _ in ()).throw(GenericError(msg))
 
-try:
-    args = parser.parse_args()
-    if args.version:
-        print(PYPY_PATH)
-        print(VERSION)
-        sys.exit(0)
-    if args.install:
-        pypy_pm.install(args.install)
-    elif args.uninstall:
-        pypy_pm.uninstall(args.uninstall)
-    else:
-        raise GenericError("Unknown command")
-except GenericError as e:
-    print(f"error: {e}\n")
-    parser.print_help()
+def main():
+    try:
+        args = parser.parse_args()
+        if args.version:
+            print(PYPY_PATH)
+            print(VERSION)
+            raise SystemExit(0)
+        if args.i:
+            pypy_pm.install(args.i)
+        elif args.u:
+            pypy_pm.uninstall(args.u)
+        else:
+            raise GenericError("no script or action specified")
+    except GenericError as e:
+        print(f"error: {e}\n")
+        parser.print_help()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        raise SystemExit(130)

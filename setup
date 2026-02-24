@@ -40,4 +40,8 @@ echo "Bootstrapping pip..."
 ./run -m ensurepip --default-pip 2>/dev/null \
 && ./run -m pip install --upgrade pip 2>/dev/null
 
-echo "Use: ./run ppstrap -h"
+## you can add more automation steps here like installing deps
+
+## ./run pps -f requirements.txt
+
+echo "Use: ./run pps -h"

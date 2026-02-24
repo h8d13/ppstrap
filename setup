@@ -39,9 +39,11 @@ PYPY_BIN="$VERSION/bin/${FILENAME%%-v*}"
 ln -sf "$PYPY_BIN" run
 echo "./run --> $PYPY_BIN"
 
-echo "Bootstrapping pip..."
-./run -m ensurepip --default-pip 2>/dev/null \
-&& ./run -m pip install --upgrade pip 2>/dev/null
+if [ -z "$NO_PIP" ]; then
+  echo "Bootstrapping pip..."
+  ./run -m ensurepip --default-pip 2>/dev/null \
+  && ./run -m pip install --upgrade pip 2>/dev/null
+fi
 
 echo "Creating pps runner..."
 cat > pps << 'PPS'
@@ -229,15 +231,16 @@ PPS
 echo "Make pps exec..."
 chmod +x pps
 
-./run pps -i ruff
-
 REQ_STRUCS="${2:-}"
+REQ_LINT="${3:-}"
 
 if [ -n "$REQ_STRUCS" ]; then
   for d in $STRUCS; do
     mkdir -p "$REQ_STRUCS/$d"
   done
-  cat > "$REQ_STRUCS/pyproject.toml" << EOF
+  if [ -n "$REQ_LINT" ]; then
+    ./run pps -i ruff
+    cat > "$REQ_STRUCS/pyproject.toml" << EOF
 [project]
 name = "$REQ_STRUCS"
 
@@ -271,6 +274,7 @@ select = [
 [tool.ruff.lint.mccabe]
 max-complexity = 20
 EOF
+  fi
   cat > "$REQ_STRUCS/src/utils/greet" << 'EOF'
 def say(name):
     print(f'Hello, {name}!')

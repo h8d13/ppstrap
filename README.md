@@ -5,19 +5,14 @@
 
 Quick start:
 
-With strucs
-
 ```shell
-./setup latest myapp
-./run pps myapp/src/main
-```
+./setup latest                  # pypy + pip
+./setup latest myapp            # + project structure (src/utils)
+./setup latest myapp lint       # + ruff + pyproject.toml
+./setup v7.3.19 myapp lint      # specific pypy version
 
-Without strucs:
-
-```shell
-./setup latest
-# create your usual Hello, World!
-./run pps hello.py
+# for the purists:
+NO_PIP=1 ./setup latest         # bare pypy, no pip
 ```
 
 ## Why pps
@@ -37,24 +32,10 @@ say("World")
 load_run("utils/greet")
 ```
 
-### Ruff built-in
-
-Ruff ships with pps via pypy pip -- no system install needed.
-
-```shell
-# lint entire project
-./run pps -l .
-# lint specific file
-./run pps -l test/src/bad
-```
-
-Auto-discovers `pyproject.toml` by walking up from the target path. Ships with many rules pre-defined (to act as a kind of compiler/helper).
-
 ### All flags
 
-
 ```
-# run is symlinked originally to the extract .pypy{version}/
+# run is symlinked originally to the extract .pypy{version}/bin/pypy3.11
 
 ./run pps <script>          run a script
 ./run pps -v                show pypy path and version

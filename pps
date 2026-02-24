@@ -1,12 +1,48 @@
 import sys
+
 # fast path if first arg is not an option - or --
 # we just exec the script as is using open and read
 if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+    _src = open(sys.argv[1]).read()
+    # only init loader if script uses it
+    if "load_" in _src:
+        from importlib.util import spec_from_file_location, module_from_spec
+        from importlib.machinery import SourceFileLoader
+
+        class Loader:
+            def __init__(self, script_dir=""):
+                self.script_dir = script_dir
+                self._cache = {}
+
+            def load_mod(self, path):
+                if path in self._cache:
+                    return self._cache[path]
+                full = self.script_dir + "/" + path if self.script_dir else path
+                name = path.rsplit("/", 1)[-1]
+                loader = SourceFileLoader(name, full)
+                spec = spec_from_file_location(name, full, loader=loader)
+                mod = module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                self._cache[path] = mod
+                return mod
+
+            def load_def(self, path, *names):
+                mod = self.load_mod(path)
+                if len(names) == 1:
+                    return getattr(mod, names[0])
+                return tuple(getattr(mod, n) for n in names)
+
+            def load_run(self, path):
+                self.load_mod(path)
+
+        _loader = Loader(sys.argv[1].rsplit("/", 1)[0] or ".")
+        load_mod = _loader.load_mod
+        load_def = _loader.load_def
+        load_run = _loader.load_run
     try:
-        exec(open(sys.argv[1]).read())
+        exec(_src)
     except SystemExit as e:
         raise SystemExit(e.code)
-    # traceback prints are handled natively by pypy
     else:
         raise SystemExit(0)
 
@@ -22,6 +58,7 @@ parser.add_argument("-v", "--version", action="store_true", help="show PyPy vers
 parser.add_argument("-i", nargs="+", metavar="PKG", help="install pypy pip packages")
 parser.add_argument("-f", metavar="FILE", help="install from requirements file")
 parser.add_argument("-u", nargs="+", metavar="PKG", help="uninstall pypy pip packages")
+parser.add_argument("-l", nargs="?", const=".", metavar="PATH", help="lint with ruff")
 parser.add_argument("-r", action="store_true", help="nuke current pypy installation")
 
 class GenError(RuntimeError):
@@ -86,6 +123,28 @@ class P2PM:
         if os.path.exists(self.version_file):
             os.remove(self.version_file)
 
+class Linter:
+    def __init__(self, pypy_path):
+        self.pypy_path = pypy_path
+
+    def find_config(self, path):
+        d = os.path.dirname(path) if os.path.isfile(path) else path
+        while d != "/":
+            if os.path.exists(os.path.join(d, "pyproject.toml")):
+                return d
+            d = os.path.dirname(d)
+        return os.path.dirname(path) if os.path.isfile(path) else path
+
+    def check(self, target):
+        target = os.path.abspath(target)
+        if not os.path.exists(target):
+            raise GenError(f"path not found: {target}")
+        cwd = self.find_config(target)
+        return subprocess.call(
+            [self.pypy_path, "-m", "ruff", "check", os.path.relpath(target, cwd)],
+            cwd=cwd,
+        )
+
 parser.error = lambda msg: (_ for _ in ()).throw(GenError(msg))
 
 def main():
@@ -95,6 +154,8 @@ def main():
             print(PYPY_PATH)
             print(VERSION)
             raise SystemExit(0)
+        if args.l is not None:
+            raise SystemExit(Linter(PYPY_PATH).check(args.l))
         pypy_pm = P2PM(PYPY_PATH)
         if args.r:
             pypy_pm.nuke()

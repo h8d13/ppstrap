@@ -1,17 +1,23 @@
 #!/bin/bash
-INIT_STRUCS=0
 STRUCS="src src/utils"
 
 BASE_URL="https://downloads.python.org/pypy"
-# some grep sort tail magic to get latest v
-FILENAME=$(curl -sSL --compressed "$BASE_URL/" \
-  | grep -oE 'pypy3\.[0-9]+-v[0-9.]+-linux64\.tar\.bz2' \
-  | sort -uV \
-  | tail -1)
+REQ_VERSION="${1:-latest}"
+
+if [ "$REQ_VERSION" = "latest" ]; then
+  FILENAME=$(curl -sSL --compressed "$BASE_URL/" \
+    | grep -oE 'pypy3\.[0-9]+-v[0-9.]+-linux64\.tar\.bz2' \
+    | sort -uV \
+    | tail -1)
+else
+  FILENAME=$(curl -sSL --compressed "$BASE_URL/" \
+    | grep -oE "pypy3\.[0-9]+-${REQ_VERSION}-linux64\.tar\.bz2" \
+    | sort -uV \
+    | tail -1)
+fi
 
 if [ -z "$FILENAME" ]; then
-  echo "Error: Could not determine latest PyPy version"
-  # case they change download page format
+  echo "Error: Could not find PyPy version '$REQ_VERSION'"
   exit 1
 fi
 
@@ -32,15 +38,61 @@ echo "Creating run symlink..."
 ln -sf "$VERSION/bin/pypy3" run
 echo "./run --> $VERSION/bin/pypy3"
 
-if [ "$INIT_STRUCS" = "1" ]; then
-  mkdir -p "$STRUCS"
-fi
-
 echo "Bootstrapping pip..."
 ./run -m ensurepip --default-pip 2>/dev/null \
 && ./run -m pip install --upgrade pip 2>/dev/null
 
-## you can add more automation steps here like installing deps
-## ./run pps -f requirements.txt
+./run pps -i ruff
+
+REQ_STRUCS="${2:-}"
+
+if [ -n "$REQ_STRUCS" ]; then
+  for d in $STRUCS; do
+    mkdir -p "$REQ_STRUCS/$d"
+  done
+  cat > "$REQ_STRUCS/pyproject.toml" << EOF
+[project]
+name = "$REQ_STRUCS"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+include = ["src/**/*"]
+builtins = ["load", "load_def"]
+
+[tool.ruff.format]
+quote-style = "single"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "FURB",   # refurb
+    "PERF",   # perflint
+    "PIE",    # flake8-pie
+    "RET",    # flake8-return
+    "RSE",    # flake8-raise
+    "RUF",    # ruff-specific
+    "SIM",    # flake8-simplify
+    "UP",     # pyupgrade
+    "W",      # pycodestyle warnings
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 20
+EOF
+  cat > "$REQ_STRUCS/src/utils/greet" << 'EOF'
+def say(name):
+    print(f'Hello, {name}!')
+EOF
+  cat > "$REQ_STRUCS/src/main" << 'EOF'
+greet = load("utils/greet")
+
+greet.say("World")
+EOF
+fi
 
 ./run -c "print('PPS Operational.')" | { grep "PPS"; echo "Use: ./run pps -h"; } || { echo "Failed to setup PPS"; exit 1; }

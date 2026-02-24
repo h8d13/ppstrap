@@ -1,3 +1,5 @@
 .pypy**
 run
 version
+test/
+__pycache__/

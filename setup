@@ -40,8 +40,4 @@ echo "Bootstrapping pip..."
 ./run -m ensurepip --default-pip 2>/dev/null \
 && ./run -m pip install --upgrade pip 2>/dev/null
 
-if [ "$INIT_STRUCS" = "1" ]; then
-  echo "Use: ./run src/ppstrap -h"
-else
-  echo "Use: ./run ppstrap -h"
-fi
+echo "Use: ./run ppstrap -h"

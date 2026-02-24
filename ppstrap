@@ -11,7 +11,7 @@ if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
         raise SystemExit(0)
 
 # only now import heavy stuff
-import subprocess, os, re, argparse
+import subprocess, os, re, shutil, argparse
 PYPY_PATH, VERSION = os.path.realpath(sys.executable), sys.version
 
 parser = argparse.ArgumentParser(description="PY2STRAP")
@@ -21,13 +21,19 @@ parser.add_argument("-v", "--version", action="store_true", help="show PyPy vers
 # no long form bellow 
 parser.add_argument("-i", nargs="+", metavar="PKG", help="install pypy pip packages")
 parser.add_argument("-u", nargs="+", metavar="PKG", help="uninstall pypy pip packages")
+parser.add_argument("-r", action="store_true", help="nuke current pypy installation")
 
 class GenError(RuntimeError):
     """Generic error wrapper"""
 
+def confirm(action):
+    if input(f"{action}? [y/N] ").lower() != "y":
+        raise GenError("aborted")
+
 class P2PM:
     def __init__(self, path, version_file="version"):
         self.path = path
+        self.version_file = version_file
         self.report_dir = os.path.join(open(version_file).read().strip(), ".p2strap")
 
     def call(self, *args):
@@ -69,6 +75,12 @@ class P2PM:
         if all_pkgs:
             self.pip("uninstall", "-y", *all_pkgs)
 
+    def nuke(self):
+        pypy_dir = self.report_dir.split("/")[0]
+        confirm(f"nuke {pypy_dir}")
+        shutil.rmtree(pypy_dir)
+        os.remove(self.version_file)
+
 pypy_pm = P2PM(PYPY_PATH)
 
 parser.error = lambda msg: (_ for _ in ()).throw(GenError(msg))
@@ -79,6 +91,9 @@ def main():
         if args.version:
             print(PYPY_PATH)
             print(VERSION)
+            raise SystemExit(0)
+        if args.r:
+            pypy_pm.nuke()
             raise SystemExit(0)
         if args.i:
             pypy_pm.install(args.i)

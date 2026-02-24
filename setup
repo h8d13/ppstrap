@@ -294,9 +294,11 @@ def inverse(name):
     return name[::-1]
 EOF
   cat > "$REQ_STRUCS/src/main" << 'EOF'
+greet = load_mod("utils/greet")
 inverse, say = load_def("utils/greet", "inverse", "say")
 
 say(inverse("World"))
+greet.say(inverse("dlroW"))
 EOF
 fi
 

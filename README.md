@@ -26,10 +26,13 @@ greet = load_mod("utils/greet")
 # use a def of module
 greet.say("World")
 # or single/multiple functions
-say = load_def("utils/greet", "say")
-say("World")
+inverse, say = load_def("utils/greet", "inverse", "say")
+say(inverse("World"))
 # or run a mod directly
+## we hit a cache here so not extra work
+## altho might have already been imported.
 load_run("utils/greet")
+# still avoid loads in hot-loops
 ```
 
 ### All flags
@@ -38,7 +41,8 @@ load_run("utils/greet")
 # run is symlinked originally to the extract .pypy{version}/bin/pypy3.11
 
 ./run pps <script>          # run a script
-./run pps -v                # show pypy path and version
+./run pps -p                # show pypy path
+./run pps -v                # show pypy version
 ./run pps -i pkg1 pkg2 ...  # install packages (with dep tracking)
 ./run pps -F requirements   # install from requirements File
 ./run pps -u pkg1 pkg2 ...  # uninstall packages (with dep cleanup)

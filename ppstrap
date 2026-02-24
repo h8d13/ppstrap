@@ -97,8 +97,10 @@ def main():
             raise SystemExit(0)
         if args.i:
             pypy_pm.install(args.i)
+            raise SystemExit(0)
         elif args.u:
             pypy_pm.uninstall(args.u)
+            raise SystemExit(0)
         else:
             raise GenError("no script or action specified")
     except GenError as e:

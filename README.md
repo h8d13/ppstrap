@@ -12,7 +12,7 @@ Quick start:
 ./setup v7.3.19 myapp lint      # specific pypy version
 
 # for the purists:
-NO_PIP=1 ./setup latest test    # bare pypy, no pip
+BARE=1 ./setup latest test       # bare pypy, no pip, with strucs, no linting
 ```
 
 ## Why pps

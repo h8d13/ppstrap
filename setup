@@ -285,21 +285,29 @@ select = [
 [tool.ruff.lint.mccabe]
 max-complexity = 20
 EOF
-  fi
-  cat > "$REQ_STRUCS/src/utils/greet" << 'EOF'
+  if [ -n "$BARE" ]; then
+    cat > "$REQ_STRUCS/src/main" << 'EOF'
+raise SystemExit(0)
+EOF
+  else
+    cat > "$REQ_STRUCS/src/utils/greet" << 'EOF'
 def say(name):
     print(f'Hello, {name}!')
 
 def inverse(name):
     return name[::-1]
 EOF
-  cat > "$REQ_STRUCS/src/main" << 'EOF'
-greet = load_mod("utils/greet")
+    cat > "$REQ_STRUCS/src/main" << 'EOF'
 inverse, say = load_def("utils/greet", "inverse", "say")
 
 say(inverse("World"))
+
+greet = load_mod("utils/greet")
+## we hit a cache here so not extra work
+## altho was already imported.
 greet.say(inverse("dlroW"))
 EOF
+  fi
 fi
 
 ./run -c "print('PPS Operational.')" | { grep "PPS"; echo "Use: ./run pps -h"; } || { echo "Failed to setup PPS"; exit 1; }

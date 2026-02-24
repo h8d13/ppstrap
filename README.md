@@ -34,14 +34,15 @@ load_run("utils/greet")
 
 ### All flags
 
-```
+```shell
 # run is symlinked originally to the extract .pypy{version}/bin/pypy3.11
 
-./run pps <script>          run a script
-./run pps -v                show pypy path and version
-./run pps -i pkg1 pkg2      install packages (with dep tracking)
-./run pps -f requirements   install from requirements file
-./run pps -u pkg1 pkg2      uninstall packages (with dep cleanup)
-./run pps -l [path]         lint with ruff (defaults to .)
-./run pps -r                nuke pypy installation (with confirmation)
+./run pps <script>          # run a script
+./run pps -v                # show pypy path and version
+./run pps -i pkg1 pkg2 ...  # install packages (with dep tracking)
+./run pps -f requirements   # install from requirements file
+./run pps -u pkg1 pkg2 ...  # uninstall packages (with dep cleanup)
+./run pps -l [path]         # lint with ruff (defaults to .)
+./run pps -f [path]         # format and fix with ruff 
+./run pps -r                # nuke pypy installation (with confirmation)
 ```

@@ -285,6 +285,7 @@ select = [
 [tool.ruff.lint.mccabe]
 max-complexity = 20
 EOF
+  fi
   if [ -n "$BARE" ]; then
     cat > "$REQ_STRUCS/src/main" << 'EOF'
 raise SystemExit(0)

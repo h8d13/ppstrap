@@ -50,9 +50,13 @@ load_run("utils/greet")
 ./run pps -f [path]         # format and fix with ruff 
 ./run pps -r                # nuke pypy installation (with confirmation)
 
-./run [flags] pps           # python flags pass through:
-# -B  no .pyc bytecode (for secondary paths)    
-# -OO  strip asserts/docstrings
-# -u  unbuffered I/O      
-# -S  skip site-packages
+./run --jit [opts] pps      # JIT tuning (defaults are already optimal):
+# threshold=200             compile sooner (default 1039)
+# decay=0                   no counter decay (long-running servers)
+# trace_limit=20000         longer traces before abort (default 6000)
 ```
+
+> JIT defaults are well-tuned out of the box. Only tweak for niche cases.
+> See [JIT help](https://doc.pypy.org/en/latest/jit_help.html) and [Performance](https://pypy.org/performance.html).
+
+You can also pass regular python flags which translate just fine.

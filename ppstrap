@@ -1,0 +1,87 @@
+import sys, os, subprocess, json
+PYPY_PATH, VERSION = os.path.realpath(sys.executable), sys.version
+
+import argparse
+parser = argparse.ArgumentParser(description="PY2STRAP")
+parser.add_argument("command", nargs="?", default="help", help="Command to run")
+parser.add_argument("-i", "--install", nargs="+", metavar="PKG", help="Install pypy pip packages")
+parser.add_argument("-u", "--uninstall", nargs="+", metavar="PKG", help="Uninstall pypy pip packages")
+parser.add_argument("-v", "--version", action="store_true", help="Show PyPy version")
+########################### ^^ argparse strips the '--' and so we can define args.version
+
+class GenericError(Exception):
+    pass
+
+class P2PM:
+    def __init__(self, path):
+        self.path = path
+        self.report_dir = os.path.realpath(os.path.join(os.path.dirname(path), "..", ".p2strap"))
+
+    def call(self, *args):
+        rc = subprocess.call([self.path] + list(args))
+        if rc != 0:
+            raise GenericError(f"command failed with exit code {rc}")
+        return rc
+
+    def call_output(self, *args):
+        return subprocess.check_output([self.path] + list(args), text=True, stderr=subprocess.DEVNULL)
+
+    def pip(self, *args):
+        return self.call("-m", "pip", *args)
+
+    def create_store(self):
+        os.makedirs(self.report_dir, exist_ok=True)
+
+    def report_path(self, pkg):
+        return os.path.join(self.report_dir, f"{pkg}.json")
+
+    def read_report(self, pkg):
+        path = self.report_path(pkg)
+        if not os.path.exists(path):
+            return None
+        with open(path) as f:
+            return json.load(f)
+
+    def pip_deps(self, pkg):
+        try:
+            out = self.call_output("-m", "pip", "show", pkg)
+            for line in out.splitlines():
+                if line.startswith("Requires:"):
+                    return [d.strip() for d in line.split(":", 1)[1].split(",") if d.strip()]
+        except (subprocess.CalledProcessError, GenericError):
+            pass
+        return []
+
+    def install(self, pkgs):
+        for pkg in pkgs:
+            self.call("-m", "pip", "install", "--no-warn-script-location", pkg)
+
+    def delete_report(self, pkg):
+        os.remove(self.report_path(pkg))
+
+    def uninstall(self, pkgs):
+        all_pkgs = list(pkgs)
+        for pkg in pkgs:
+            all_pkgs.extend(self.pip_deps(pkg))
+        if all_pkgs:
+            self.pip("uninstall", "-y", *all_pkgs)
+
+pypy_pm = P2PM(PYPY_PATH)
+
+parser.error = lambda msg: (_ for _ in ()).throw(GenericError(msg))
+
+try:
+    args = parser.parse_args()
+    if args.version:
+        print(PYPY_PATH)
+        print(VERSION)
+        sys.exit(0)
+    if args.install:
+        pypy_pm.install(args.install)
+    elif args.uninstall:
+        pypy_pm.uninstall(args.uninstall)
+    else:
+        raise GenericError("Unknown command")
+except GenericError as e:
+    print(f"error: {e}\n")
+    parser.print_help()

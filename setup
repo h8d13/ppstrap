@@ -1,0 +1,47 @@
+#!/bin/bash
+INIT_STRUCS=0
+STRUCS="src src/utils"
+
+BASE_URL="https://downloads.python.org/pypy"
+# some grep sort tail magic to get latest v
+FILENAME=$(curl -sSL --compressed "$BASE_URL/" \
+  | grep -oE 'pypy3\.[0-9]+-v[0-9.]+-linux64\.tar\.bz2' \
+  | sort -uV \
+  | tail -1)
+
+if [ -z "$FILENAME" ]; then
+  echo "Error: Could not determine latest PyPy version"
+  # case they change download page format
+  exit 1
+fi
+
+echo "Downloading $FILENAME..."
+curl -sSL -O "$BASE_URL/$FILENAME"
+
+VERSION=".${FILENAME%%.tar.bz2}"
+
+echo "Extracting to $VERSION and removing archive..."
+mkdir -p "$VERSION"
+tar xf "$FILENAME" --strip-components=1 -C "$VERSION"
+rm "$FILENAME"
+
+echo "Wrote $VERSION to version file..."
+echo "$VERSION" > version
+
+echo "Creating run symlink..."
+ln -sf "$VERSION/bin/pypy3" run
+echo "./run --> $VERSION/bin/pypy3"
+
+if [ "$INIT_STRUCS" = "1" ]; then
+  mkdir -p "$STRUCS"
+fi
+
+echo "Bootstrapping pip..."
+./run -m ensurepip --default-pip 2>/dev/null \
+&& ./run -m pip install --upgrade pip 2>/dev/null
+
+if [ "$INIT_STRUCS" = "1" ]; then
+  echo "Use: ./run src/main to test"
+else
+  echo "Use: ./run main to test"
+fi

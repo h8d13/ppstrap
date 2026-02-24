@@ -40,7 +40,7 @@ load_run("utils/greet")
 ```shell
 # run is symlinked originally to the extract .pypy{version}/bin/pypy3.11
 
-./run pps <script>          # run a script
+./run pps [path]            # run a script
 ./run pps -p                # show pypy path
 ./run pps -v                # show pypy version
 ./run pps -i pkg1 pkg2 ...  # install packages (with dep tracking)

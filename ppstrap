@@ -13,7 +13,7 @@ if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
         raise SystemExit(0)
 
 # only now import heavy stuff
-import subprocess, json, argparse
+import subprocess, re, argparse
 parser = argparse.ArgumentParser(description="PY2STRAP")
 parser.add_argument("script", nargs="?", help="path to script to run")
 parser.add_argument("-v", "--version", action="store_true", help="show PyPy version")
@@ -22,8 +22,8 @@ parser.add_argument("-v", "--version", action="store_true", help="show PyPy vers
 parser.add_argument("-i", nargs="+", metavar="PKG", help="install pypy pip packages")
 parser.add_argument("-u", nargs="+", metavar="PKG", help="uninstall pypy pip packages")
 
-class GenericError(Exception):
-    pass
+class GenError(RuntimeError):
+    """Generic error wrapper"""
 
 class P2PM:
     def __init__(self, path):
@@ -33,11 +33,8 @@ class P2PM:
     def call(self, *args):
         rc = subprocess.call([self.path] + list(args))
         if rc != 0:
-            raise GenericError(f"command failed with exit code {rc}")
+            raise GenError(f"command failed with exit code {rc}")
         return rc
-
-    def call_output(self, *args):
-        return subprocess.check_output([self.path] + list(args), text=True, stderr=subprocess.DEVNULL)
 
     def pip(self, *args):
         return self.call("-m", "pip", *args)
@@ -48,40 +45,33 @@ class P2PM:
     def report_path(self, pkg):
         return os.path.join(self.report_dir, f"{pkg}.json")
 
-    def read_report(self, pkg):
+    def read_report_names(self, pkg):
         path = self.report_path(pkg)
         if not os.path.exists(path):
-            return None
+            return []
         with open(path) as f:
-            return json.load(f)
-
-    def pip_deps(self, pkg):
-        try:
-            out = self.call_output("-m", "pip", "show", pkg)
-            for line in out.splitlines():
-                if line.startswith("Requires:"):
-                    return [d.strip() for d in line.split(":", 1)[1].split(",") if d.strip()]
-        except (subprocess.CalledProcessError, GenericError):
-            pass
-        return []
+            return re.findall(r'"name":\s*"([^"]+)"', f.read())
 
     def install(self, pkgs):
+        self.create_store()
         for pkg in pkgs:
-            self.call("-m", "pip", "install", "--no-warn-script-location", pkg)
-
-    def delete_report(self, pkg):
-        os.remove(self.report_path(pkg))
+            self.call("-m", "pip", "install", "--no-warn-script-location", "--report", self.report_path(pkg), pkg)
 
     def uninstall(self, pkgs):
-        all_pkgs = list(pkgs)
+        all_pkgs = []
         for pkg in pkgs:
-            all_pkgs.extend(self.pip_deps(pkg))
+            names = self.read_report_names(pkg)
+            if names:
+                all_pkgs.extend(names)
+                os.remove(self.report_path(pkg))
+            else:
+                all_pkgs.append(pkg)
         if all_pkgs:
             self.pip("uninstall", "-y", *all_pkgs)
 
 pypy_pm = P2PM(PYPY_PATH)
 
-parser.error = lambda msg: (_ for _ in ()).throw(GenericError(msg))
+parser.error = lambda msg: (_ for _ in ()).throw(GenError(msg))
 
 def main():
     try:
@@ -95,8 +85,8 @@ def main():
         elif args.u:
             pypy_pm.uninstall(args.u)
         else:
-            raise GenericError("no script or action specified")
-    except GenericError as e:
+            raise GenError("no script or action specified")
+    except GenError as e:
         print(f"error: {e}\n")
         parser.print_help()
 

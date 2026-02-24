@@ -52,13 +52,12 @@ echo "Creating pps runner..."
 cat > pps << 'PPS'
 import sys
 
-
 if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
     _src = open(sys.argv[1]).read()
     # fast path if first arg is not an option - or --
     # we just exec the script as is using open and read
     # only init loader if script uses it
-    if "load_" in _src:
+    if "load_mod" in _src or "load_def" in _src or "load_run" in _src:
         from importlib.util import spec_from_file_location, module_from_spec
         from importlib.machinery import SourceFileLoader
 
@@ -80,13 +79,14 @@ if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
                 return mod
 
             def load_def(self, path, *names):
-                mod = self.load_mod(path)
+                mod = self._cache.get(path) or self.load_mod(path)
                 if len(names) == 1:
                     return getattr(mod, names[0])
                 return tuple(getattr(mod, n) for n in names)
 
             def load_run(self, path):
-                self.load_mod(path)
+                if path not in self._cache:
+                    self.load_mod(path)
 
         _loader = Loader(sys.argv[1].rsplit("/", 1)[0] or ".")
         load_mod = _loader.load_mod
@@ -105,6 +105,7 @@ PYPY_PATH, VERSION = os.path.realpath(sys.executable), sys.version
 
 parser = argparse.ArgumentParser(description="PY2STRAP")
 parser.add_argument("script", nargs="?", help="path to script to run")
+parser.add_argument("-p", "--path", action="store_true", help="show PyPy path")
 parser.add_argument("-v", "--version", action="store_true", help="show PyPy version")
 ########################### ^^ argparse strips the '--' and so we can define args.version
 # no long form bellow 
@@ -204,8 +205,10 @@ parser.error = lambda msg: (_ for _ in ()).throw(GenError(msg))
 def main():
     try:
         args = parser.parse_args()
-        if args.version:
+        if args.path:
             print(PYPY_PATH)
+            raise SystemExit(0)
+        if args.version:
             print(VERSION)
             raise SystemExit(0)
         if args.l is not None:
@@ -286,11 +289,14 @@ EOF
   cat > "$REQ_STRUCS/src/utils/greet" << 'EOF'
 def say(name):
     print(f'Hello, {name}!')
+
+def inverse(name):
+    return name[::-1]
 EOF
   cat > "$REQ_STRUCS/src/main" << 'EOF'
-greet = load_mod("utils/greet")
+inverse, say = load_def("utils/greet", "inverse", "say")
 
-greet.say("World")
+say(inverse("World"))
 EOF
 fi
 

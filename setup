@@ -41,7 +41,7 @@ echo "Bootstrapping pip..."
 && ./run -m pip install --upgrade pip 2>/dev/null
 
 if [ "$INIT_STRUCS" = "1" ]; then
-  echo "Use: ./run src/main to test"
+  echo "Use: ./run src/ppstrap -h"
 else
-  echo "Use: ./run main to test"
+  echo "Use: ./run ppstrap -h"
 fi

@@ -21,6 +21,7 @@ parser.add_argument("-v", "--version", action="store_true", help="show PyPy vers
 # no long form bellow 
 parser.add_argument("-i", nargs="+", metavar="PKG", help="install pypy pip packages")
 parser.add_argument("-u", nargs="+", metavar="PKG", help="uninstall pypy pip packages")
+parser.add_argument("-f", metavar="FILE", help="install from requirements file")
 parser.add_argument("-r", action="store_true", help="nuke current pypy installation")
 
 class GenError(RuntimeError):
@@ -58,6 +59,9 @@ class P2PM:
         with open(path) as f:
             return re.findall(r'"name":\s*"([^"]+)"', f.read())
 
+    def read_requirements(self, path):
+        return [l.split("#")[0].strip() for l in open(path) if l.strip() and not l.startswith("#")]
+
     def install(self, pkgs):
         self.create_store()
         for pkg in pkgs:
@@ -94,6 +98,8 @@ def main():
         pypy_pm = P2PM(PYPY_PATH)
         if args.r:
             pypy_pm.nuke()
+        elif args.f:
+            pypy_pm.install(pypy_pm.read_requirements(args.f))
         elif args.i:
             pypy_pm.install(args.i)
         elif args.u:

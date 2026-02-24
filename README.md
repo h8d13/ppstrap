@@ -52,7 +52,10 @@ Auto-discovers `pyproject.toml` by walking up from the target path. Ships with m
 
 ### All flags
 
+
 ```
+# run is symlinked originally to the extract .pypy{version}/
+
 ./run pps <script>          run a script
 ./run pps -v                show pypy path and version
 ./run pps -i pkg1 pkg2      install packages (with dep tracking)

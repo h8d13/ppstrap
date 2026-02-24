@@ -35,8 +35,9 @@ echo "Wrote $VERSION to version file..."
 echo "$VERSION" > version
 
 echo "Creating run symlink..."
-ln -sf "$VERSION/bin/pypy3" run
-echo "./run --> $VERSION/bin/pypy3"
+PYPY_BIN="$VERSION/bin/${FILENAME%%-v*}"
+ln -sf "$PYPY_BIN" run
+echo "./run --> $PYPY_BIN"
 
 echo "Bootstrapping pip..."
 ./run -m ensurepip --default-pip 2>/dev/null \
@@ -46,10 +47,11 @@ echo "Creating pps runner..."
 cat > pps << 'PPS'
 import sys
 
-# fast path if first arg is not an option - or --
-# we just exec the script as is using open and read
+
 if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
     _src = open(sys.argv[1]).read()
+    # fast path if first arg is not an option - or --
+    # we just exec the script as is using open and read
     # only init loader if script uses it
     if "load_" in _src:
         from importlib.util import spec_from_file_location, module_from_spec

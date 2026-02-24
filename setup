@@ -42,6 +42,191 @@ echo "Bootstrapping pip..."
 ./run -m ensurepip --default-pip 2>/dev/null \
 && ./run -m pip install --upgrade pip 2>/dev/null
 
+echo "Creating pps runner..."
+cat > pps << 'PPS'
+import sys
+
+# fast path if first arg is not an option - or --
+# we just exec the script as is using open and read
+if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+    _src = open(sys.argv[1]).read()
+    # only init loader if script uses it
+    if "load_" in _src:
+        from importlib.util import spec_from_file_location, module_from_spec
+        from importlib.machinery import SourceFileLoader
+
+        class Loader:
+            def __init__(self, script_dir=""):
+                self.script_dir = script_dir
+                self._cache = {}
+
+            def load_mod(self, path):
+                if path in self._cache:
+                    return self._cache[path]
+                full = self.script_dir + "/" + path if self.script_dir else path
+                name = path.rsplit("/", 1)[-1]
+                loader = SourceFileLoader(name, full)
+                spec = spec_from_file_location(name, full, loader=loader)
+                mod = module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                self._cache[path] = mod
+                return mod
+
+            def load_def(self, path, *names):
+                mod = self.load_mod(path)
+                if len(names) == 1:
+                    return getattr(mod, names[0])
+                return tuple(getattr(mod, n) for n in names)
+
+            def load_run(self, path):
+                self.load_mod(path)
+
+        _loader = Loader(sys.argv[1].rsplit("/", 1)[0] or ".")
+        load_mod = _loader.load_mod
+        load_def = _loader.load_def
+        load_run = _loader.load_run
+    try:
+        exec(_src)
+    except SystemExit as e:
+        raise SystemExit(e.code)
+    else:
+        raise SystemExit(0)
+
+# only now import heavy stuff
+import subprocess, os, re, shutil, argparse
+PYPY_PATH, VERSION = os.path.realpath(sys.executable), sys.version
+
+parser = argparse.ArgumentParser(description="PY2STRAP")
+parser.add_argument("script", nargs="?", help="path to script to run")
+parser.add_argument("-v", "--version", action="store_true", help="show PyPy version")
+########################### ^^ argparse strips the '--' and so we can define args.version
+# no long form bellow 
+parser.add_argument("-i", nargs="+", metavar="PKG", help="install pypy pip packages")
+parser.add_argument("-f", metavar="FILE", help="install from requirements file")
+parser.add_argument("-u", nargs="+", metavar="PKG", help="uninstall pypy pip packages")
+parser.add_argument("-l", nargs="?", const=".", metavar="PATH", help="lint with ruff")
+parser.add_argument("-r", action="store_true", help="nuke current pypy installation")
+
+class GenError(RuntimeError):
+    """Generic error wrapper"""
+
+def confirm(action):
+    if input(f"{action}? [y/N] ").lower() != "y":
+        raise SystemExit(0)
+
+class P2PM:
+    def __init__(self, path, version_file="version"):
+        self.path = path
+        self.version_file = version_file
+        self.report_dir = os.path.join(open(version_file).read().strip(), ".p2strap")
+
+    def call(self, *args):
+        rc = subprocess.call([self.path] + list(args))
+        if rc != 0:
+            raise GenError(f"command failed with exit code {rc}")
+        return rc
+
+    def pip(self, *args):
+        return self.call("-m", "pip", *args)
+
+    def create_store(self):
+        os.makedirs(self.report_dir, exist_ok=True)
+
+    def report_path(self, pkg):
+        return os.path.join(self.report_dir, f"{pkg}.json")
+
+    def read_report_names(self, pkg):
+        path = self.report_path(pkg)
+        if not os.path.exists(path):
+            return []
+        with open(path) as f:
+            return re.findall(r'"name":\s*"([^"]+)"', f.read())
+
+    def read_requirements(self, path):
+        return [l.split("#")[0].strip() for l in open(path) if l.strip() and not l.startswith("#")]
+
+    def install(self, pkgs):
+        self.create_store()
+        for pkg in pkgs:
+            self.call("-m", "pip", "install", "--no-warn-script-location", "--report", self.report_path(pkg), pkg)
+
+    def uninstall(self, pkgs):
+        all_pkgs = []
+        for pkg in pkgs:
+            names = self.read_report_names(pkg)
+            if names:
+                all_pkgs.extend(names)
+                os.remove(self.report_path(pkg))
+            else:
+                all_pkgs.append(pkg)
+        if all_pkgs:
+            self.pip("uninstall", "-y", *all_pkgs)
+
+    def nuke(self):
+        pypy_dir = self.report_dir.split("/")[0]
+        confirm(f"nuke {pypy_dir}")
+        shutil.rmtree(pypy_dir)
+        if os.path.exists(self.version_file):
+            os.remove(self.version_file)
+
+class Linter:
+    def __init__(self, pypy_path):
+        self.pypy_path = pypy_path
+
+    def find_config(self, path):
+        d = os.path.dirname(path) if os.path.isfile(path) else path
+        while d != "/":
+            if os.path.exists(os.path.join(d, "pyproject.toml")):
+                return d
+            d = os.path.dirname(d)
+        return os.path.dirname(path) if os.path.isfile(path) else path
+
+    def check(self, target):
+        target = os.path.abspath(target)
+        if not os.path.exists(target):
+            raise GenError(f"path not found: {target}")
+        cwd = self.find_config(target)
+        return subprocess.call(
+            [self.pypy_path, "-m", "ruff", "check", os.path.relpath(target, cwd)],
+            cwd=cwd,
+        )
+
+parser.error = lambda msg: (_ for _ in ()).throw(GenError(msg))
+
+def main():
+    try:
+        args = parser.parse_args()
+        if args.version:
+            print(PYPY_PATH)
+            print(VERSION)
+            raise SystemExit(0)
+        if args.l is not None:
+            raise SystemExit(Linter(PYPY_PATH).check(args.l))
+        pypy_pm = P2PM(PYPY_PATH)
+        if args.r:
+            pypy_pm.nuke()
+        elif args.f:
+            pypy_pm.install(pypy_pm.read_requirements(args.f))
+        elif args.i:
+            pypy_pm.install(args.i)
+        elif args.u:
+            pypy_pm.uninstall(args.u)
+        else:
+            raise GenError("no script or action specified")
+    except GenError as e:
+        print(f"error: {e}\n")
+        parser.print_help()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        raise SystemExit(130)
+PPS
+
+echo "Make pps exec..."
+chmod +x pps
+
 ./run pps -i ruff
 
 REQ_STRUCS="${2:-}"
@@ -58,7 +243,7 @@ name = "$REQ_STRUCS"
 line-length = 120
 target-version = "py311"
 include = ["src/**/*"]
-builtins = ["load", "load_def"]
+builtins = ["load_mod", "load_def", "load_run"]
 
 [tool.ruff.format]
 quote-style = "single"
@@ -89,7 +274,7 @@ def say(name):
     print(f'Hello, {name}!')
 EOF
   cat > "$REQ_STRUCS/src/main" << 'EOF'
-greet = load("utils/greet")
+greet = load_mod("utils/greet")
 
 greet.say("World")
 EOF

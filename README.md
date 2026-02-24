@@ -48,6 +48,16 @@ Ruff ships with pps via pypy pip -- no system install needed.
 ./run pps -l test/src/bad
 ```
 
-Auto-discovers `pyproject.toml` by walking up from the target path. Ships with many rules pre-defined (to act as a kind of compiler/helper)
+Auto-discovers `pyproject.toml` by walking up from the target path. Ships with many rules pre-defined (to act as a kind of compiler/helper).
 
+### All flags
 
+```
+./run pps <script>          run a script
+./run pps -v                show pypy path and version
+./run pps -i pkg1 pkg2      install packages (with dep tracking)
+./run pps -f requirements   install from requirements file
+./run pps -u pkg1 pkg2      uninstall packages (with dep cleanup)
+./run pps -l [path]         lint with ruff (defaults to .)
+./run pps -r                nuke pypy installation (with confirmation)
+```

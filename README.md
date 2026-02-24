@@ -40,7 +40,7 @@ load_run("utils/greet")
 ./run pps <script>          # run a script
 ./run pps -v                # show pypy path and version
 ./run pps -i pkg1 pkg2 ...  # install packages (with dep tracking)
-./run pps -f requirements   # install from requirements file
+./run pps -F requirements   # install from requirements File
 ./run pps -u pkg1 pkg2 ...  # uninstall packages (with dep cleanup)
 ./run pps -l [path]         # lint with ruff (defaults to .)
 ./run pps -f [path]         # format and fix with ruff 

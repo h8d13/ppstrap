@@ -1,6 +1,4 @@
-import sys, os
-PYPY_PATH, VERSION = os.path.realpath(sys.executable), sys.version
-
+import sys
 # fast path if first arg is not an option - or --
 # we just exec the script as is using open and read
 if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
@@ -13,7 +11,9 @@ if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
         raise SystemExit(0)
 
 # only now import heavy stuff
-import subprocess, re, argparse
+import subprocess, os, re, argparse
+PYPY_PATH, VERSION = os.path.realpath(sys.executable), sys.version
+
 parser = argparse.ArgumentParser(description="PY2STRAP")
 parser.add_argument("script", nargs="?", help="path to script to run")
 parser.add_argument("-v", "--version", action="store_true", help="show PyPy version")
@@ -26,9 +26,9 @@ class GenError(RuntimeError):
     """Generic error wrapper"""
 
 class P2PM:
-    def __init__(self, path):
+    def __init__(self, path, version_file="version"):
         self.path = path
-        self.report_dir = os.path.realpath(os.path.join(os.path.dirname(path), "..", ".p2strap"))
+        self.report_dir = os.path.join(open(version_file).read().strip(), ".p2strap")
 
     def call(self, *args):
         rc = subprocess.call([self.path] + list(args))

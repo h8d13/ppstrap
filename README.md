@@ -28,9 +28,9 @@ greet.say("World")
 # or single/multiple functions
 inverse, say = load_def("utils/greet", "inverse", "say")
 say(inverse("World"))
-# or run a mod directly
 ## we hit a cache here so not extra work
 ## altho might have already been imported.
+# or run a mod directly
 load_run("utils/greet")
 # still avoid loads in hot-loops
 ```

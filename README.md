@@ -6,13 +6,13 @@
 Quick start:
 
 ```shell
-./setup latest                  # pypy + pip
+./setup latest                  # pypy + pip, no project strucs
 ./setup latest myapp            # + project structure (src/utils)
 ./setup latest myapp lint       # + ruff + pyproject.toml
 ./setup v7.3.19 myapp lint      # specific pypy version
 
 # for the purists:
-NO_PIP=1 ./setup latest         # bare pypy, no pip
+NO_PIP=1 ./setup latest test    # bare pypy, no pip
 ```
 
 ## Why pps

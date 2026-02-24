@@ -41,7 +41,6 @@ echo "Bootstrapping pip..."
 && ./run -m pip install --upgrade pip 2>/dev/null
 
 ## you can add more automation steps here like installing deps
-
 ## ./run pps -f requirements.txt
 
-echo "Use: ./run pps -h"
+./run -c "print('PPS Operational.')" | { grep "PPS"; echo "Use: ./run pps -h"; } || { echo "Failed to setup PPS"; exit 1; }

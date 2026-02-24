@@ -28,7 +28,7 @@ class GenError(RuntimeError):
 
 def confirm(action):
     if input(f"{action}? [y/N] ").lower() != "y":
-        raise GenError("aborted")
+        raise SystemExit(0)
 
 class P2PM:
     def __init__(self, path, version_file="version"):
@@ -79,9 +79,8 @@ class P2PM:
         pypy_dir = self.report_dir.split("/")[0]
         confirm(f"nuke {pypy_dir}")
         shutil.rmtree(pypy_dir)
-        os.remove(self.version_file)
-
-pypy_pm = P2PM(PYPY_PATH)
+        if os.path.exists(self.version_file):
+            os.remove(self.version_file)
 
 parser.error = lambda msg: (_ for _ in ()).throw(GenError(msg))
 
@@ -92,15 +91,13 @@ def main():
             print(PYPY_PATH)
             print(VERSION)
             raise SystemExit(0)
+        pypy_pm = P2PM(PYPY_PATH)
         if args.r:
             pypy_pm.nuke()
-            raise SystemExit(0)
-        if args.i:
+        elif args.i:
             pypy_pm.install(args.i)
-            raise SystemExit(0)
         elif args.u:
             pypy_pm.uninstall(args.u)
-            raise SystemExit(0)
         else:
             raise GenError("no script or action specified")
     except GenError as e:

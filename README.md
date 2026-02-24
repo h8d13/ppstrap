@@ -49,4 +49,10 @@ load_run("utils/greet")
 ./run pps -l [path]         # lint with ruff (defaults to .)
 ./run pps -f [path]         # format and fix with ruff 
 ./run pps -r                # nuke pypy installation (with confirmation)
+
+./run [flags] pps           # python flags pass through:
+# -B  no .pyc bytecode (for secondary paths)    
+# -OO  strip asserts/docstrings
+# -u  unbuffered I/O      
+# -S  skip site-packages
 ```

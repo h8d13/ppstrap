@@ -205,8 +205,9 @@ class Linter:
             args += extra
         return subprocess.call(args, cwd=cwd)
 
-# Override parser.error to raise GenError instead of sys.exit (raise not allowed in lambda)
-parser.error = lambda msg: (_ for _ in ()).throw(GenError(msg))
+def parser_error(msg):
+    raise GenError(msg)
+parser.error = parser_error
 
 def main():
     try:

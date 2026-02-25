@@ -2,5 +2,6 @@
 run
 version
 test/
+example/
 __pycache__/
 pps

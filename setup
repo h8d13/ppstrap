@@ -1,44 +1,49 @@
 #!/bin/bash
 STRUCS="src src/utils"
 
-BASE_URL="https://downloads.python.org/pypy"
-REQ_VERSION="${1:-latest}"
-
-if [ "$REQ_VERSION" = "latest" ]; then
-  FILENAME=$(curl -sSL --compressed "$BASE_URL/" \
-    | grep -oE 'pypy3\.[0-9]+-v[0-9.]+-linux64\.tar\.bz2' \
-    | sort -uV \
-    | tail -1)
+if ldd --version 2>&1 | grep -qi musl; then
+  # musl libc - use system pypy3
+  PYPY_BIN=$(command -v pypy3) || { echo "pypy3 not found"; exit 1; }
+  VERSION=".pypy3-musl"
 else
-  FILENAME=$(curl -sSL --compressed "$BASE_URL/" \
-    | grep -oE "pypy3\.[0-9]+-${REQ_VERSION}-linux64\.tar\.bz2" \
-    | sort -uV \
-    | tail -1)
+  # glibc - download pypy
+  BASE_URL="https://downloads.python.org/pypy"
+  REQ_VERSION="${1:-latest}"
+
+  if [ "$REQ_VERSION" = "latest" ]; then
+    FILENAME=$(curl -sSL --compressed "$BASE_URL/" \
+      | grep -oE 'pypy3\.[0-9]+-v[0-9.]+-linux64\.tar\.bz2' \
+      | sort -uV \
+      | tail -1)
+  else
+    FILENAME=$(curl -sSL --compressed "$BASE_URL/" \
+      | grep -oE "pypy3\.[0-9]+-${REQ_VERSION}-linux64\.tar\.bz2" \
+      | sort -uV \
+      | tail -1)
+  fi
+
+  if [ -z "$FILENAME" ]; then
+    echo "Error: Could not find PyPy version '$REQ_VERSION'"
+    exit 1
+  fi
+
+  VERSION=".${FILENAME%%.tar.bz2}"
+
+  if [ -d "$VERSION" ]; then
+    echo "Already installed: $VERSION"
+  else
+    echo "Downloading $FILENAME..."
+    curl -sSL -O "$BASE_URL/$FILENAME"
+    echo "Extracting to $VERSION and removing archive..."
+    mkdir -p "$VERSION"
+    tar xf "$FILENAME" --strip-components=1 -C "$VERSION"
+    rm "$FILENAME"
+  fi
+
+  PYPY_BIN="$VERSION/bin/${FILENAME%%-v*}"
 fi
 
-if [ -z "$FILENAME" ]; then
-  echo "Error: Could not find PyPy version '$REQ_VERSION'"
-  exit 1
-fi
-
-VERSION=".${FILENAME%%.tar.bz2}"
-
-if [ -d "$VERSION" ]; then
-  echo "Already installed: $VERSION"
-else
-  echo "Downloading $FILENAME..."
-  curl -sSL -O "$BASE_URL/$FILENAME"
-  echo "Extracting to $VERSION and removing archive..."
-  mkdir -p "$VERSION"
-  tar xf "$FILENAME" --strip-components=1 -C "$VERSION"
-  rm "$FILENAME"
-fi
-
-echo "Wrote $VERSION to version file..."
 echo "$VERSION" > version
-
-echo "Creating run symlink..."
-PYPY_BIN="$VERSION/bin/${FILENAME%%-v*}"
 ln -sf "$PYPY_BIN" run
 echo "./run --> $PYPY_BIN"
 
@@ -88,7 +93,7 @@ if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
                 if path not in self._cache:
                     self.load_mod(path)
 
-        _loader = Loader(sys.argv[1].rsplit("/", 1)[0] or ".")
+        _loader = Loader(sys.argv[1].rsplit("/", 1)[0] if "/" in sys.argv[1] else ".")
         load_mod = _loader.load_mod
         load_def = _loader.load_def
         load_run = _loader.load_run
@@ -152,7 +157,7 @@ class P2PM:
             return re.findall(r'"name":\s*"([^"]+)"', f.read())
 
     def read_requirements(self, path):
-        return [l.split("#")[0].strip() for l in open(path) if l.strip() and not l.startswith("#")]
+        return [s for l in open(path) if (s := l.split("#")[0].strip())]
 
     def install(self, pkgs):
         self.create_store()
@@ -172,17 +177,17 @@ class P2PM:
             self.pip("uninstall", "-y", *all_pkgs)
 
     def nuke(self):
-        pypy_dir = self.report_dir.split("/")[0]
+        pypy_dir = open(self.version_file).read().strip()
         confirm(f"nuke {pypy_dir}")
         shutil.rmtree(pypy_dir)
-        if os.path.exists(self.version_file):
-            os.remove(self.version_file)
+        os.remove(self.version_file)
 
 class Linter:
     def __init__(self, pypy_path):
         self.pypy_path = pypy_path
 
     def find_config(self, path):
+        path = os.path.abspath(path)
         d = os.path.dirname(path) if os.path.isfile(path) else path
         while d != "/":
             if os.path.exists(os.path.join(d, "pyproject.toml")):
@@ -200,6 +205,7 @@ class Linter:
             args += extra
         return subprocess.call(args, cwd=cwd)
 
+# Override parser.error to raise GenError instead of sys.exit (raise not allowed in lambda)
 parser.error = lambda msg: (_ for _ in ()).throw(GenError(msg))
 
 def main():

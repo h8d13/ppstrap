@@ -1,56 +1,23 @@
 #!/bin/bash
 STRUCS="src src/utils"
 
-if ldd --version 2>&1 | grep -qi musl; then
-  # musl libc - use system pypy3
-  PYPY_BIN=$(command -v pypy3) || { echo "pypy3 not found"; exit 1; }
-  VERSION=".pypy3-musl"
-else
-  # glibc - download pypy
-  BASE_URL="https://downloads.python.org/pypy"
-  REQ_VERSION="${1:-latest}"
+PYPY_BIN=$(command -v pypy3) || { echo "pypy3 not found - install via package manager"; exit 1; }
 
-  if [ "$REQ_VERSION" = "latest" ]; then
-    FILENAME=$(curl -sSL --compressed "$BASE_URL/" \
-      | grep -oE 'pypy3\.[0-9]+-v[0-9.]+-linux64\.tar\.bz2' \
-      | sort -uV \
-      | tail -1)
-  else
-    FILENAME=$(curl -sSL --compressed "$BASE_URL/" \
-      | grep -oE "pypy3\.[0-9]+-${REQ_VERSION}-linux64\.tar\.bz2" \
-      | sort -uV \
-      | tail -1)
-  fi
-
-  if [ -z "$FILENAME" ]; then
-    echo "Error: Could not find PyPy version '$REQ_VERSION'"
-    exit 1
-  fi
-
-  VERSION=".${FILENAME%%.tar.bz2}"
-
-  if [ -d "$VERSION" ]; then
-    echo "Already installed: $VERSION"
-  else
-    echo "Downloading $FILENAME..."
-    curl -sSL -O "$BASE_URL/$FILENAME"
-    echo "Extracting to $VERSION and removing archive..."
-    mkdir -p "$VERSION"
-    tar xf "$FILENAME" --strip-components=1 -C "$VERSION"
-    rm "$FILENAME"
-  fi
-
-  PYPY_BIN="$VERSION/bin/${FILENAME%%-v*}"
+if [ ! -d ".venv" ]; then
+  echo "Creating venv..."
+  "$PYPY_BIN" -m venv .venv
 fi
 
-echo "$VERSION" > version
-ln -sf "$PYPY_BIN" run
-echo "./run --> $PYPY_BIN"
+cat > run << 'RUN'
+#!/bin/sh
+exec "$(dirname "$0")/.venv/bin/pypy3" "$@"
+RUN
+chmod +x run
+echo "./run --> .venv/bin/pypy3 (wrapper)"
 
 if [ -z "$NO_PIP" ]; then
-  echo "Bootstrapping pip..."
-  ./run -m ensurepip --default-pip 2>/dev/null \
-  && ./run -m pip install --upgrade pip 2>/dev/null
+  echo "Upgrading pip..."
+  .venv/bin/pip install --upgrade pip 2>/dev/null
 fi
 
 echo "Creating pps runner..."
@@ -106,7 +73,7 @@ if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
 
 # only now import heavy stuff
 import subprocess, os, re, shutil, argparse
-PYPY_PATH, VERSION = os.path.realpath(sys.executable), sys.version
+PYPY_PATH, VERSION = sys.executable, sys.version
 
 parser = argparse.ArgumentParser(description="PY2STRAP")
 parser.add_argument("script", nargs="?", help="path to script to run")
